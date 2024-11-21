@@ -1,60 +1,54 @@
-label_dir = os.path.join(output_folder, "labels")
-calib_dir = os.path.join(output_folder, "calib")
+import numpy as np
+import open3d as o3d
+import os
 
-os.makedirs(velodyne_dir, exist_ok=True)
-os.makedirs(image_2_dir, exist_ok=True)
-os.makedirs(label_dir, exist_ok=True)
-os.makedirs(calib_dir, exist_ok=True)
+def load_point_cloud(bin_path):
+    """Load a point cloud from a binary .bin file."""
+    pc = np.fromfile(bin_path, dtype=np.float32).reshape(-1, 4)  # x, y, z, intensity
+    return pc[:, :3]  # Only use x, y, z
 
-def convert_ply_to_bin(ply_file, bin_file):
-    # Read the .ply file using Open3D
-    pcd = o3d.io.read_point_cloud(ply_file)
-    points = np.asarray(pcd.points)
+def load_labels(label_path):
+    """Load labels from a .label file."""
+    labels = np.fromfile(label_path, dtype=np.uint32)
+    return labels & 0xFFFF  # Semantic labels (first 16 bits)
 
-    # Write to .bin file (SemanticKITTI format: each point has x, y, z, intensity)
-    intensity = np.zeros((points.shape[0], 1))  # Dummy intensity values
-    points_with_intensity = np.hstack((points, intensity)).astype(np.float32)
-    points_with_intensity.tofile(bin_file)
+def visualize_point_cloud(pc, labels=None):
+    """Visualize the point cloud with Open3D."""
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(pc)
+    
+    if labels is not None:
+        # Assign colors based on labels
+        unique_labels = np.unique(labels)
+        colors = np.random.rand(len(unique_labels), 3)  # Random color for each label
+        label_to_color = {label: colors[i] for i, label in enumerate(unique_labels)}
+        color_array = np.array([label_to_color[label] for label in labels])
+        pcd.colors = o3d.utility.Vector3dVector(color_array)
 
-def create_calib_file(output_dir, seq_num):
-    # Replace with your actual calibration values
-    calib_content = """
-P0: 960.0 0.0 960.0 0.0 0.0 540.0 0.0 0.0 0.0 0.0 1.0 0.0
-P1: 960.0 0.0 960.0 0.0 0.0 540.0 0.0 0.0 0.0 0.0 1.0 0.0
-P2: 960.0 0.0 960.0 0.0 0.0 540.0 0.0 0.0 0.0 0.0 1.0 0.0
-P3: 960.0 0.0 960.0 0.0 0.0 540.0 0.0 0.0 0.0 0.0 1.0 0.0
-Tr_velo_to_cam: 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-Tr_imu_to_velo: 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-"""
-    calib_file_path = os.path.join(output_dir, f"{seq_num:06d}.txt")
-    with open(calib_file_path, 'w') as f:
-        f.write(calib_content.strip())
+    # Visualize with Open3D
+    o3d.visualization.draw_geometries([pcd])
 
-# List the .ply and .png files
-cloud_files = sorted([f for f in os.listdir(cloud_folder) if f.endswith('.ply')])
-image_files = sorted([f for f in os.listdir(image_folder) if f.endswith('.png')])
+def main(dataset_path, sequence="00"):
+    sequence_path = os.path.join(dataset_path, "sequences", sequence)
+    velodyne_path = os.path.join(sequence_path, "velodyne")
+    label_path = os.path.join(sequence_path, "labels")
+    
+    # List files in the sequence
+    bin_files = sorted(os.listdir(velodyne_path))
+    label_files = sorted(os.listdir(label_path)) if os.path.exists(label_path) else None
 
-# Ensure both directories have the same number of files
-assert len(cloud_files) == len(image_files), "Mismatch in the number of cloud and image files!"
+    for i, bin_file in enumerate(bin_files):
+        bin_path = os.path.join(velodyne_path, bin_file)
+        pc = load_point_cloud(bin_path)
+        
+        labels = None
+        if label_files:
+            label_path = os.path.join(label_path, label_files[i])
+            labels = load_labels(label_path)
+        
+        print(f"Visualizing frame {i + 1}/{len(bin_files)}: {bin_file}")
+        visualize_point_cloud(pc, labels)
 
-for i, (cloud_file, image_file) in enumerate(zip(cloud_files, image_files)):
-    # Process each .ply and corresponding .png file
-    ply_file_path = os.path.join(cloud_folder, cloud_file)
-    bin_file_path = os.path.join(velodyne_dir, f"{i:06d}.bin")
-    convert_ply_to_bin(ply_file_path, bin_file_path)
-
-    # Process the corresponding image
-    image_file_path = os.path.join(image_folder, image_file)
-    image_output = os.path.join(image_2_dir, f"{i:06d}.png")
-    img = Image.open(image_file_path)
-    img.save(image_output)
-
-    # Create a dummy label file (for compatibility)
-    label_output = os.path.join(label_dir, f"{i:06d}.label")
-    dummy_label = np.zeros((len(np.asarray(o3d.io.read_point_cloud(ply_file_path).points)),), dtype=np.uint32)
-    dummy_label.tofile(label_output)
-
-    # Create a calibration file
-    create_calib_file(calib_dir, i)
-
-print("Conversion completed with calibration files!")
+if __name__ == "__main__":
+    dataset_path = "path/to/your/dataset"
+    main(dataset_path)
