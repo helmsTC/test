@@ -26,6 +26,23 @@ CUSTOM_LABEL_COLORS = {
     19: [255, 223, 186],  # Person-Child
 }
 
+def load_point_cloud(bin_path):
+    """Load a point cloud from a binary .bin file."""
+    pc = np.fromfile(bin_path, dtype=np.float32).reshape(-1, 4)  # x, y, z, intensity
+    return pc[:, :3]  # Only use x, y, z
+
+def load_labels(label_path):
+    """Load labels from a .label file."""
+    labels = np.fromfile(label_path, dtype=np.uint32)
+    return labels & 0xFFFF  # Semantic labels (first 16 bits)
+
+def pad_labels(labels, target_size):
+    """Pad labels with 0 to match the size of the point cloud."""
+    if len(labels) < target_size:
+        padding = np.zeros(target_size - len(labels), dtype=np.uint32)
+        labels = np.concatenate([labels, padding])
+    return labels
+
 def quaternion_to_matrix(quaternion):
     """Convert a quaternion into a 4x4 homogeneous transformation matrix."""
     x, y, z, w = quaternion
@@ -105,6 +122,15 @@ def overlay_points_on_image(image, points_2d, labels, depth):
             cv2.circle(overlay, (x, y), 2, [c * depth_normalized / 255 for c in color], -1)
     return overlay
 
+def load_calibration(calib_path):
+    """Load calibration data from a KITTI format calibration file."""
+    calib = {}
+    with open(calib_path, 'r') as f:
+        for line in f.readlines():
+            key, value = line.split(':', 1)
+            calib[key] = np.array([float(x) for x in value.split()]).reshape(-1, 4)
+    return calib
+
 def main(dataset_path, sequence="00"):
     sequence_path = os.path.join(dataset_path, "sequences", sequence)
     velodyne_path = os.path.join(sequence_path, "velodyne")
@@ -130,6 +156,13 @@ def main(dataset_path, sequence="00"):
             if os.path.exists(label_file):
                 labels = load_labels(label_file)
 
+        # Pad labels if needed
+        if labels is not None:
+            if len(labels) < pc.shape[0]:
+                labels = pad_labels(labels, pc.shape[0])
+            elif len(labels) > pc.shape[0]:
+                labels = labels[:pc.shape[0]]
+
         # Load image
         img_file = os.path.join(image_path, image_files[i])
         image = cv2.imread(img_file)
@@ -146,11 +179,6 @@ def main(dataset_path, sequence="00"):
 
     cv2.destroyAllWindows()
 
-def load_calibration(calib_path):
-    """Load calibration data from a KITTI format calibration file."""
-    calib = {}
-    with open(calib_path, 'r') as f:
-        for line in f.readlines():
-            key, value = line.split(':', 1)
-            calib[key] = np.array([float(x) for x in value.split()]).reshape(-1, 4)
-    return calib
+if __name__ == "__main__":
+    dataset_path = "path/to/your/dataset"
+    main(dataset_path)
