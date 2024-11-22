@@ -24,23 +24,30 @@ def load_calibration(calib_path):
 
 def project_points(pc, calib):
     """Project 3D points onto 2D image space using calibration parameters."""
-    # Get calibration matrices
+    # Load calibration matrices
     P = calib['P0']  # 3x4 camera intrinsic matrix
-    R0_rect = calib['R0_rect'][:3, :3]  # 3x3 rectification matrix
     Tr_velo_to_cam = calib['Tr_velo_to_cam']  # 3x4 transformation matrix
 
-    # Transform points to the camera coordinate frame
-    pc_homogeneous = np.hstack((pc, np.ones((pc.shape[0], 1))))  # Nx4
-    pc_cam = (Tr_velo_to_cam @ pc_homogeneous.T).T  # Nx3
+    # Get alignment matrix
+    R_align = get_r_align()
 
-    # Apply rectification
-    pc_rect = (R0_rect @ pc_cam[:, :3].T).T  # Nx3
+    # Align point cloud to match camera coordinate system
+    pc_aligned = (R_align @ pc.T).T
+
+    # Convert point cloud to homogeneous coordinates
+    pc_homogeneous = np.hstack((pc_aligned, np.ones((pc_aligned.shape[0], 1))))  # Nx4
+
+    # Transform points to the camera coordinate frame
+    pc_cam = (Tr_velo_to_cam @ pc_homogeneous.T).T  # Nx4 -> Nx3
+
+    # Filter points behind the camera
+    pc_cam = pc_cam[pc_cam[:, 2] > 0]
 
     # Project points to image space
-    pc_image = (P @ np.hstack((pc_rect, np.ones((pc_rect.shape[0], 1)))).T).T  # Nx3
+    pc_image = (P @ pc_cam.T).T  # Nx4 -> Nx3
     pc_image[:, :2] /= pc_image[:, 2:]  # Normalize by depth (z)
 
-    return pc_image[:, :2], pc_rect[:, 2]  # Return 2D points and depth
+    return pc_image[:, :2], pc_cam[:, 2]  # Return 2D points and depth
 
 def overlay_points_on_image(image, points_2d, labels, depth, category_color_map):
     """Overlay 3D points onto a 2D image."""
