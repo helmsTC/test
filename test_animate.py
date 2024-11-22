@@ -40,42 +40,31 @@ def get_r_align():
     # Combined rotation: R_align = R_z @ R_y
     R_align = R_z @ R_y
     return R_align
-def project_points(pc, calib):
-    """Project 3D points onto 2D image space using calibration parameters."""
-    # Load calibration matrices
-    P = calib['P0']  # 3x4 camera intrinsic matrix
-    Tr_velo_to_cam = calib['Tr_velo_to_cam']  # 3x4 transformation matrix
-
-    # Get alignment matrix
+def project_and_overlay_points(lidar_points, calib, image):
+    """
+    Transform lidar points to the camera frame, project to 2D, and overlay on the image.
+    """
+    # Step 1: Align the lidar points
     R_align = get_r_align()
+    lidar_points_aligned = (R_align[:3, :3] @ lidar_points.T).T
 
-    # Align point cloud to match camera coordinate system
-    pc_aligned = (R_align @ pc.T).T
+    # Step 2: Transform to the camera frame
+    pc_homogeneous = np.hstack((lidar_points_aligned, np.ones((lidar_points_aligned.shape[0], 1))))  # Nx4
+    pc_cam = (calib['Tr_velo_to_cam'] @ pc_homogeneous.T).T
 
-    # Convert point cloud to homogeneous coordinates
-    pc_homogeneous = np.hstack((pc_aligned, np.ones((pc_aligned.shape[0], 1))))  # Nx4
-
-    # Transform points to the camera coordinate frame
-    pc_cam = (Tr_velo_to_cam @ pc_homogeneous.T).T  # Nx4 -> Nx3
-
-    # Filter points behind the camera
+    # Step 3: Filter points behind the camera
     pc_cam = pc_cam[pc_cam[:, 2] > 0]
 
-    # Project points to image space
-    pc_image = (P @ pc_cam.T).T  # Nx4 -> Nx3
-    pc_image[:, :2] /= pc_image[:, 2:]  # Normalize by depth (z)
+    # Step 4: Project points to image space
+    points_2d = (calib['P0'] @ pc_cam.T).T
+    points_2d[:, :2] /= points_2d[:, 2:]  # Normalize by depth
 
-    return pc_image[:, :2], pc_cam[:, 2]  # Return 2D points and depth
-
-def overlay_points_on_image(image, points_2d, labels, depth, category_color_map):
-    """Overlay 3D points onto a 2D image."""
+    # Step 5: Overlay points on the image
     overlay = image.copy()
-    for i, point in enumerate(points_2d):
+    for point in points_2d:
         x, y = int(point[0]), int(point[1])
         if 0 <= x < image.shape[1] and 0 <= y < image.shape[0]:  # Check bounds
-            color = category_color_map.get(labels[i], [255, 255, 255])  # Default white for unknown
-            depth_normalized = int(255 * (1 - min(1, depth[i] / 50.0)))  # Normalize depth for brightness
-            cv2.circle(overlay, (x, y), 2, [c * depth_normalized / 255 for c in color], -1)
+            cv2.circle(overlay, (x, y), 2, (0, 255, 0), -1)  # Draw green points
     return overlay
 
 def visualize_overlay(dataset_path, sequence="00", frame_rate=10):
