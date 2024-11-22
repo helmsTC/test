@@ -21,7 +21,25 @@ def load_calibration(calib_path):
             key, value = line.split(':', 1)
             calib[key] = np.array([float(x) for x in value.split()]).reshape(-1, 4)
     return calib
+def get_r_align():
+    """Construct the alignment matrix R_align manually."""
+    # Rotation around the y-axis by -π/2
+    R_y = np.array([
+        [np.cos(-np.pi / 2), 0, np.sin(-np.pi / 2)],
+        [0, 1, 0],
+        [-np.sin(-np.pi / 2), 0, np.cos(-np.pi / 2)]
+    ])
 
+    # Rotation around the z-axis by π/2
+    R_z = np.array([
+        [np.cos(np.pi / 2), -np.sin(np.pi / 2), 0],
+        [np.sin(np.pi / 2), np.cos(np.pi / 2), 0],
+        [0, 0, 1]
+    ])
+
+    # Combined rotation: R_align = R_z @ R_y
+    R_align = R_z @ R_y
+    return R_align
 def project_points(pc, calib):
     """Project 3D points onto 2D image space using calibration parameters."""
     # Load calibration matrices
