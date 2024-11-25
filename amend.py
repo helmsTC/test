@@ -3,7 +3,7 @@ import numpy as np
 
 def process_label_files(directory):
     """
-    Go through the directory, open each .label file, and replace label 9 with 51.
+    Go through the directory, open each .label file, and convert all labels to uint32 format.
     """
     # Ensure the directory exists
     if not os.path.exists(directory):
@@ -25,12 +25,13 @@ def process_label_files(directory):
 
         # Load the binary data from the file
         try:
+            # Read the file as an array of uint32
             labels = np.fromfile(file_path, dtype=np.uint32)
 
-            # Replace occurrences of 9 with 51
-            labels[labels == 9] = 51
+            # Convert all labels to uint32 (this ensures dtype consistency)
+            labels = labels.astype(np.uint32)
 
-            # Write the modified data back to the file
+            # Write the converted data back to the file
             labels.tofile(file_path)
         except Exception as e:
             print(f"Failed to process file '{label_file}': {e}")
