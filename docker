@@ -1,0 +1,37 @@
+# Use NVIDIA’s official CUDA 11.3 devel image on Ubuntu 20.04
+FROM nvidia/cuda:11.3.1-devel-ubuntu20.04
+
+# 1. Install system packages for Python 3.9, plus curl (to get pip)
+RUN apt-get update && apt-get install -y \
+    python3.9 \
+    python3.9-dev \
+    python3.9-distutils \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Install pip for Python 3.9
+RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
+    && python3.9 get-pip.py \
+    && rm get-pip.py
+
+# 3. Install your pinned Python dependencies with pip
+#    (Using --extra-index-url to pull the correct wheel for torch==1.10.1+cu113)
+RUN python3.9 -m pip install --no-cache-dir \
+    click==8.1.3 \
+    easydict==1.9 \
+    matplotlib==3.5.1 \
+    MinkowskiEngine==0.5.4 \
+    numpy==1.20.3 \
+    open3d==0.13.0 \
+    pykeops==2.1 \
+    pytorch_lightning==1.5.6 \
+    PyYAML==6.0 \
+    scipy==1.7.3 \
+    torch==1.10.1+cu113 \
+    --extra-index-url https://download.pytorch.org/whl/cu113
+
+# Set python3.9 as the default “python” command (optional convenience)
+RUN ln -s /usr/bin/python3.9 /usr/local/bin/python
+
+# For interactive use or debugging
+CMD ["python", "--version"]
