@@ -1,26 +1,18 @@
-labels: 
+# -----------------------------------------------------
+# semantic-kitti.yaml for a custom dataset
+# -----------------------------------------------------
+
+labels:
   0 : "unlabeled"
-  1 : "car"
-  2 : "bicycle"
-  3 : "bus"
-  4 : "motorcycle"
-  5 : "on-rails"
-  6 : "truck"
-  7 : "other-vehicle"
-  8 : "person"
-  9 : "bicyclist"
-  10: "motorcyclist"
-  11: "road"
-  12: "parking"
-  13: "sidewalk"
-  14: "other-ground"
-  15: "building"
-  16: "fence"
-  17: "vegetation"
-  18: "trunk"
-  19: "terrain"
-  20: "unlabeled"
-  30: "car"
+  1 : "outlier"
+  10: "car"
+  11: "bicycle"
+  13: "truck"
+  15: "crane"
+  16: "on-rails"
+  18: "truck"
+  20: "other-vehicle"
+  30: "person"
   31: "bicyclist"
   32: "motorcyclist"
   40: "road"
@@ -28,24 +20,25 @@ labels:
   48: "sidewalk"
   49: "other-ground"
   50: "building"
-  51: "fence"
+  51: "container"
   52: "other-structure"
-  60: "road"
+  60: "lane-marking"
   70: "vegetation"
   71: "trunk"
   72: "terrain"
-  80: "bicyclist"
+  80: "pole"
   81: "traffic-sign"
-  99: "unlabeled"
-  252: "car"
-  253: "bicyclist"
-  254: "person"
-  255: "motorcyclist"
-  256: "on-rails"
-  257: "bus"
-  258: "truck"
-  259: "other-vehicle"
-color_map: # bgr
+  99: "other-object"
+  252: "moving-car"
+  253: "moving-bicyclist"
+  254: "moving-person"
+  255: "moving-motorcyclist"
+  256: "moving-on-rails"
+  257: "moving-bus"
+  258: "moving-truck"
+  259: "moving-other-vehicle"
+
+color_map:
   0 : [0, 0, 0]
   1 : [245, 150, 100]
   2 : [245, 230, 100]
@@ -53,157 +46,143 @@ color_map: # bgr
   4 : [150, 60, 30]
   5 : [255, 0, 0]
   6 : [180, 30, 80]
-  7 : [255, 0, 0]
-  8 : [30, 30, 255]
-  9 : [200, 40, 255]
-  10: [90, 30, 150]
-  11: [255, 0, 255]
-  12: [255, 150, 255]
-  13: [75, 0, 75]
-  14: [75, 0, 175]
-  15: [0, 200, 255]
-  16: [50, 120, 255]
-  17: [0, 175, 0]
-  18: [0, 60, 135]
-  19: [80, 240, 150]
-  20: [0, 0, 0]
-  30: [245, 150, 100]
-  31: [200, 40, 255]
-  32: [90, 30, 150]
-  40: [255, 0, 255]
-  44: [255, 150, 255]
-  48: [75, 0, 75]
-  49: [75, 0, 175]
-  50: [0, 200, 255]
-  51: [50, 120, 255]
-  52: [0, 150, 255]
-  60: [170, 255, 150]
-  70: [0, 175, 0]
-  71: [0, 60, 135]
-  72: [80, 240, 150]
-  80: [200, 40, 255]
-  81: [0, 0, 255]
-  99: [0, 0, 0]
-  252: [245, 150, 100]
-  253: [200, 40, 255]
-  254: [30, 30, 255]
-  255: [90, 30, 150]
-  256: [255, 0, 0]
-  257: [250, 80, 100]
-  258: [180, 30, 80]
-  259: [255, 0, 0]
+  7 : [30, 30, 255]
+  8 : [200, 40, 255]
+  9 : [90, 30, 150]
+  10: [255, 0, 255]
+  11: [255, 150, 255]
+  12: [75, 0, 75]
+  13: [75, 0, 175]
+  14: [0, 200, 255]
+  15: [50, 120, 255]
+  16: [0, 150, 255]
+  18: [0, 175, 0]
+  19: [0, 60, 135]
+  20: [80, 240, 150]
+  21: [150, 240, 255]
+  22: [0, 0, 255]
+
 learning_map:
-  0 : 0     # "unlabeled"
-  1 : 1     # "car"
-  2 : 2     # "bicycle"
-  3 : 3     # "bus"
-  4 : 4     # "motorcycle"
-  5 : 5     # "on-rails"
-  6 : 6     # "truck"
-  7 : 7     # "other-vehicle"
-  8 : 8     # "person"
-  9 : 9     # "bicyclist"
-  10: 10    # "motorcyclist"
-  11: 11    # "road"
-  12: 12    # "parking"
-  13: 13    # "sidewalk"
-  14: 14    # "other-ground"
-  15: 15    # "building"
-  16: 16    # "fence"
-  17: 17    # "vegetation"
-  18: 18    # "trunk"
-  19: 19    # "terrain"
-  20: 0     # "unlabeled"
-  30: 1     # "car"
-  31: 9     # "bicyclist"
-  32: 10    # "motorcyclist"
-  40: 11    # "road"
-  44: 12    # "parking"
-  48: 13    # "sidewalk"
-  49: 14    # "other-ground"
-  50: 15    # "building"
-  51: 16    # "fence"
-  52: 0     # "other-structure" mapped to "unlabeled"
-  60: 11    # "lane-marking" to "road"
-  70: 17    # "vegetation"
-  71: 18    # "trunk"
-  72: 19    # "terrain"
-  80: 9     # "bicyclist"
-  81: 19    # "traffic-sign"
-  99: 0     # "other-object" to "unlabeled"
-  252: 1    # "moving-car" to "car"
-  253: 9    # "moving-bicyclist" to "bicyclist"
-  254: 8    # "moving-person" to "person"
-  255: 10   # "moving-motorcyclist" to "motorcyclist"
-  256: 5    # "moving-on-rails" mapped to "on-rails"
-  257: 3    # "moving-bus" to "bus"
-  258: 6    # "moving-truck" to "truck"
-  259: 7    # "moving-other-vehicle" to "other-vehicle"
-learning_map_inv: # inverse of previous map
-  0: 0      # "unlabeled", and others ignored
-  1: 1      # "car"
-  2: 2      # "bicycle"
-  3: 3      # "bus"
-  4: 4      # "motorcycle"
-  5: 5      # "on-rails"
-  6: 6      # "truck"
-  7: 7      # "other-vehicle"
-  8: 8      # "person"
-  9: 9      # "bicyclist"
-  10: 10    # "motorcyclist"
-  11: 11    # "road"
-  12: 12    # "parking"
-  13: 13    # "sidewalk"
-  14: 14    # "other-ground"
-  15: 15    # "building"
-  16: 16    # "fence"
-  17: 17    # "vegetation"
-  18: 18    # "trunk"
-  19: 19    # "terrain"
-learning_ignore: # Ignore classes
-  0: True      # "unlabeled", and others ignored
-  1: False     # "car"
-  2: False     # "bicycle"
-  3: False     # "bus"
-  4: False     # "motorcycle"
-  5: False     # "on-rails"
-  6: False     # "truck"
-  7: False     # "other-vehicle"
-  8: False     # "person"
-  9: False     # "bicyclist"
-  10: False    # "motorcyclist"
-  11: False    # "road"
-  12: False    # "parking"
-  13: False    # "sidewalk"
-  14: False    # "other-ground"
-  15: False    # "building"
-  16: False    # "fence"
-  17: False    # "vegetation"
-  18: False    # "trunk"
-  19: False    # "terrain"
-color_map_learning : {
-  0: [0, 0, 0],
-  1: [245, 150, 100],
-  2: [245, 230, 100],
-  3: [250, 80, 100],
-  4: [150, 60, 30],
-  5: [255, 0, 0],
-  6: [180, 30, 80],
-  7: [255, 0, 0],
-  8: [30, 30, 255],
-  9: [200, 40, 255],
-  10: [90, 30, 150],
-  11: [255, 0, 255],
-  12: [255, 150, 255],
-  13: [75, 0, 75],
-  14: [75, 0, 175],
-  15: [0, 200, 255],
-  16: [50, 120, 255],
-  17: [0, 175, 0],
-  18: [0, 60, 135],
-  19: [80, 240, 150],
-}
-split: # sequence numbers
+  0 : 0
+  1 : 0
+  99: 0
+  10: 1
+  11: 2
+  13: 3
+  15: 4
+  16: 5
+  18: 3
+  20: 6
+  30: 7
+  31: 8
+  32: 9
+  40: 10
+  44: 11
+  48: 12
+  49: 13
+  50: 14
+  51: 15
+  52: 16
+  60: 10
+  70: 18
+  71: 19
+  72: 20
+  80: 21
+  81: 22
+  252: 1
+  253: 8
+  254: 7
+  255: 9
+  256: 5
+  257: 3
+  258: 3
+  259: 6
+
+learning_map_inv:
+  0  : 0
+  1  : 10
+  2  : 11
+  3  : 13
+  4  : 15
+  5  : 16
+  6  : 20
+  7  : 30
+  8  : 31
+  9  : 32
+  10 : 40
+  11 : 44
+  12 : 48
+  13 : 49
+  14 : 50
+  15 : 51
+  16 : 52
+  18 : 70
+  19 : 71
+  20 : 72
+  21 : 80
+  22 : 81
+
+learning_ignore:
+  0: True
+  1: False
+  2: False
+  3: False
+  4: False
+  5: False
+  6: False
+  7: False
+  8: False
+  9: False
+  10: False
+  11: False
+  12: False
+  13: False
+  14: False
+  15: False
+  16: False
+  18: False
+  19: False
+  20: False
+  21: False
+  22: False
+
+content: # as a ratio with the total number of points
+  0: 0.018889854628292943
+  1: 0.0002937197336781505
+  10: 0.040818519255974316
+  11: 0.00016609538710764618
+  13: 2.7879693665067774e-05
+  15: 0.00039838616015114444
+  16: 0.0
+  18: 0.0020633612104619787
+  20: 0.0016218197275284021
+  30: 0.00017698551338515307
+  31: 1.1065903904919655e-08
+  32: 5.532951952459828e-09
+  40: 0.1987493871255525
+  44: 0.014717169549888214
+  48: 0.14392298360372
+  49: 0.0039048553037472045
+  50: 0.1326861944777486
+  51: 0.0723592229456223
+  52: 0.002395131480328884
+  60: 4.7084144280367186e-05
+  70: 0.26681502148037506
+  71: 0.006035012012626033
+  72: 0.07814222006271769
+  80: 0.002855498193863172
+  81: 0.0006155958086189918
+  99: 0.009923127583046915
+  252: 0.001789309418528068
+  253: 0.00012709999297008662
+  254: 0.00016059776092534436
+  255: 3.745553104802113e-05
+  256: 0.0
+  257: 0.00011351574470342043
+  258: 0.00010157861367183268
+  259: 4.3840131989471124e-05
+
+split:
   train:
     - 0
     - 1
@@ -227,5 +206,5 @@ split: # sequence numbers
     - 17
     - 18
     - 19
-    - 0
-    - 1
+    - 20
+    - 21
