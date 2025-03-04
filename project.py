@@ -2,6 +2,7 @@
 import numpy as np
 import struct
 import cv2
+# P2: 960.000000 0.000000 960.000000 0.000000 0.000000 946.930129 540.000000 0.000000 0.000000 0.000000 1.000000 0.000000
 
 def euler_matrix_sxyz(roll, pitch, yaw):
     """
