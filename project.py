@@ -1,132 +1,180 @@
+#!/usr/bin/env python3
 import numpy as np
-import cv2
 import struct
+import cv2
 
-def parse_calib_file(calib_path, cam_idx=2):
+def euler_matrix_sxyz(roll, pitch, yaw):
     """
-    Parses a KITTI-style calib.txt, returning the 3x4 P matrix for the
-    specified camera index (e.g., P2 for `image_2`).
+    Replicates tf_transformations.euler_matrix(roll, pitch, yaw, axes='sxyz')
+    which corresponds to extrinsic rotations about X, then Y, then Z.
+    Internally that is Rz(yaw) * Ry(pitch) * Rx(roll).
+    
+    Returns a 4x4 homogeneous rotation matrix with no translation.
     """
-    # Example lines in calib.txt:
-    # P0: 7.215377e+02 ...
-    # P1: ...
-    # P2: ...
-    # R0_rect: ...
-    # Tr_velo_to_cam: ...
-    #
-    # We'll just extract the 'P2:' line by default.
+    # Rotation about X
+    Rx = np.array([
+        [1,            0,             0],
+        [0,  np.cos(roll), -np.sin(roll)],
+        [0,  np.sin(roll),  np.cos(roll)]
+    ], dtype=np.float64)
 
-    camera_string = f'P{cam_idx}:'
-    P = None
+    # Rotation about Y
+    Ry = np.array([
+        [ np.cos(pitch), 0, np.sin(pitch)],
+        [            0,  1,            0],
+        [-np.sin(pitch), 0, np.cos(pitch)]
+    ], dtype=np.float64)
 
-    with open(calib_path, 'r') as f:
-        for line in f:
-            if camera_string in line:
-                # Strip 'P2:' then split by space
-                raw_data = line.strip().split(' ')
-                # raw_data[0] is 'P2:', rest are the matrix numbers
-                mat_values = raw_data[1:]  # everything after 'P2:'
-                mat_values = [float(v) for v in mat_values]
-                P = np.reshape(mat_values, (3, 4))
-                break
+    # Rotation about Z
+    Rz = np.array([
+        [ np.cos(yaw), -np.sin(yaw), 0],
+        [ np.sin(yaw),  np.cos(yaw), 0],
+        [           0,            0, 1]
+    ], dtype=np.float64)
 
-    if P is None:
-        raise ValueError(f"Could not find {camera_string} in {calib_path}")
-    return P
+    # Multiply in order: Rz * Ry * Rx
+    R = Rz @ Ry @ Rx
+
+    # Embed into 4x4
+    M = np.eye(4, dtype=np.float64)
+    M[:3, :3] = R
+    return M
+
 
 def load_velodyne_points(bin_path):
     """
-    Reads a KITTI-style .bin file with floats (x, y, z, reflectance) per point.
-    Returns an Nx4 numpy array.
+    Reads a typical KITTI .bin file with floats (x, y, z, reflectance).
+    Returns an Nx4 float32 array: [[x, y, z, r], ...].
     """
     points = []
     with open(bin_path, 'rb') as f:
         content = f.read()
-        # Each point is 4 floats = 16 bytes
-        # # of points = len(content) / 16
-        # Use struct.unpack to parse all at once
-        pts_iter = struct.iter_unpack('ffff', content)
-        for x, y, z, r in pts_iter:
+        # Each point has 4 floats = 16 bytes
+        it = struct.iter_unpack('ffff', content)
+        for x, y, z, r in it:
             points.append((x, y, z, r))
-    points = np.array(points, dtype=np.float32)
-    return points
+    return np.array(points, dtype=np.float32)
+
 
 def load_semantic_labels(label_path):
     """
-    Reads a SemanticKITTI .label file.
-    Each entry is a uint32 label. 
+    Reads a SemanticKITTI .label file. Each entry is a uint32 label.
     Returns an N array of labels.
     """
-    labels = np.fromfile(label_path, dtype=np.uint32)
-    return labels
+    return np.fromfile(label_path, dtype=np.uint32)
+
+
+def parse_calib_file(calib_file):
+    """
+    Parse a typical KITTI-style calib.txt to extract:
+      - P2 (3x4 camera projection for image_2)
+      - Tr_velo_to_cam (4x4)
+      - R0_rect or R_rect (4x4)
+    You can adapt this if you need 'P0', 'P1', etc.
+    """
+    P2 = None
+    Tr_velo_to_cam = None
+    R_rect = np.eye(4, dtype=np.float64)  # default identity
+
+    with open(calib_file, 'r') as f:
+        for line in f:
+            if line.startswith('P2:'):
+                vals = line.strip().split()[1:]  # skip 'P2:'
+                vals = list(map(float, vals))
+                P2 = np.array(vals).reshape(3, 4)
+            elif line.startswith('Tr_velo_to_cam:'):
+                vals = line.strip().split()[1:]
+                vals = list(map(float, vals))
+                Tr_velo_to_cam = np.eye(4, dtype=np.float64)
+                Tr_velo_to_cam[:3, :4] = np.array(vals).reshape(3, 4)
+            elif line.startswith('R0_rect:') or line.startswith('R_rect'):
+                vals = line.strip().split()[1:]
+                vals = list(map(float, vals))
+                R_mat = np.array(vals).reshape(3, 3)
+                R_rect = np.eye(4, dtype=np.float64)
+                R_rect[:3, :3] = R_mat
+
+    if P2 is None or Tr_velo_to_cam is None:
+        raise ValueError("Could not parse P2 or Tr_velo_to_cam from calib file.")
+    
+    return P2, Tr_velo_to_cam, R_rect
+
 
 def get_color_for_label(label_id):
     """
-    A simple color map for demonstration: 
-    returns a BGR color tuple for a given label_id.
-    You can customize as needed.
+    Very simple color mapping for demonstration: 
+    Deterministically map label_id -> a BGR color.
     """
-    # Quick hack: map label to a consistent color
-    # e.g. use the label ID bits or a small LUT
-    np.random.seed(label_id)
+    np.random.seed(label_id)  # consistent color for same label
     color = np.random.randint(0, 255, (3,), dtype=np.uint8)
+    # cv2 uses BGR, so just return as is
     return (int(color[0]), int(color[1]), int(color[2]))
 
+
 def main():
-    # 1) File paths
-    calib_file = 'calib.txt'
-    image_file = 'image_2/00000.png'
-    velodyne_file = 'velodyne/00000.bin'
-    label_file = 'labels/00000.label'
+    # 1. File paths (adjust to match your setup)
+    calib_path  = 'calib.txt'
+    img_path    = 'image_2/00000.png'
+    bin_path    = 'velodyne/00000.bin'
+    label_path  = 'labels/00000.label'
+    out_path    = 'overlay_00000.png'
 
-    # 2) Parse calibration
-    P = parse_calib_file(calib_file, cam_idx=2)  # for image_2
-    # P is shape (3,4)
-
-    # 3) Load image
-    img = cv2.imread(image_file)
+    # 2. Load image
+    img = cv2.imread(img_path)
     if img is None:
-        raise FileNotFoundError(f"Could not load {image_file}")
-    height, width = img.shape[:2]
+        raise FileNotFoundError(f"Could not read image: {img_path}")
+    h, w = img.shape[:2]
 
-    # 4) Load point cloud + labels
-    points = load_velodyne_points(velodyne_file)  # Nx4
-    labels = load_semantic_labels(label_file)     # N
+    # 3. Parse calibration: P2 (3x4), Tr_velo_to_cam (4x4), R_rect (4x4)
+    P2, Tr_velo_to_cam, R_rect = parse_calib_file(calib_path)
 
-    # 5) Convert points to homogeneous, Nx4
-    #    We only need x,y,z for projection. reflectance is points[:,3]
-    ones = np.ones((points.shape[0], 1), dtype=np.float32)
+    # 4. Load point cloud + labels
+    points = load_velodyne_points(bin_path)  # Nx4: x, y, z, reflectance
+    labels = load_semantic_labels(label_path)  # N
+
+    # 5. Convert to homogeneous Nx4
+    N = points.shape[0]
+    ones = np.ones((N, 1), dtype=np.float32)
     points_xyz1 = np.hstack((points[:, :3], ones))  # Nx4
 
-    # 6) Because Unreal is left-handed and typical KITTI / OpenCV is right-handed,
-    #    we often see a mirrored projection. One quick fix is to flip the x-axis:
-    flip_x = np.diag([-1, 1, 1, 1]).astype(np.float32)  # shape (4,4)
-    points_xyz1_flipped = (flip_x @ points_xyz1.T).T
+    # 6. Optional: Build the alignment rotation to replicate tf_transformations
+    #    euler_matrix(0, -pi/2, pi/2, axes='sxyz')
+    #    This might fix left-handed vs. right-handed or up-axis issues.
+    R_align = euler_matrix_sxyz(0, -np.pi/2, np.pi/2)  # shape 4x4
 
-    # 7) Project with the camera matrix P (3x4)
-    #    2D homogeneous coords = P * (x,y,z,1)
-    #    Then convert to pixel coords: (u = x'/z', v = y'/z')
-    points_2d = (P @ points_xyz1_flipped.T).T  # Nx3
-    u = points_2d[:, 0] / points_2d[:, 2]
-    v = points_2d[:, 1] / points_2d[:, 2]
+    # 7. Combine with the LiDAR->Camera transform
+    #    Commonly you'd do: T_total = Tr_velo_to_cam @ R_align
+    #    But if that doesn't help, try the other order:
+    T_total = Tr_velo_to_cam @ R_align
+    
+    # 8. Transform points from LiDAR frame to "camera" frame
+    points_cam = (T_total @ points_xyz1.T).T  # Nx4
+    
+    # 9. Optionally apply R_rect (if your data requires rectification)
+    points_cam_rect = (R_rect @ points_cam.T).T  # Nx4
 
-    # 8) Filter valid points: z>0, in image bounds
-    z_cam = points_2d[:, 2]
-    valid = (z_cam > 0) & (u >= 0) & (u < width) & (v >= 0) & (v < height)
+    # 10. Project via P2 (3x4)
+    #     uvh = P2 * (x, y, z, 1) -> (u, v, h)
+    uvh = (P2 @ points_cam_rect.T).T  # Nx3
+    u = uvh[:, 0] / uvh[:, 2]
+    v = uvh[:, 1] / uvh[:, 2]
+    z = uvh[:, 2]  # camera-plane depth
 
+    # 11. Filter out invalid points
+    valid = (z > 0) & (u >= 0) & (u < w) & (v >= 0) & (v < h)
     u_valid = u[valid]
     v_valid = v[valid]
     lbl_valid = labels[valid]
 
-    # 9) Overlay on image
-    for uu, vv, lbl_id in zip(u_valid, v_valid, lbl_valid):
-        color = get_color_for_label(lbl_id)
+    # 12. Draw on image
+    for uu, vv, lbl in zip(u_valid, v_valid, lbl_valid):
+        color = get_color_for_label(lbl)
         cv2.circle(img, (int(uu), int(vv)), 2, color, -1)
 
-    # 10) Show or save result
-    out_file = 'overlay_00000.png'
-    cv2.imwrite(out_file, img)
-    print(f"Saved overlay to {out_file}")
+    # 13. Save or display
+    cv2.imwrite(out_path, img)
+    print(f"Overlay saved to {out_path}")
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()
