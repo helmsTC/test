@@ -1,26 +1,27 @@
 async def get_queries_loop(name: str) -> bool:
     logger = _get_logger()
     aclient = await Client("localhost:6461", asynchronous=True)
+    conn   = await utils.get_redis_connection()
 
     _start = time()
 
-    # --- Prime the pump with the first pair ---
-    state = await _get_state(name)
-    request_future = aclient.submit(get_queries, state, loop=False, pure=False)
+    # --- Prime the pump: fetch the very first pair ---
+    state          = await _get_state(name)
+    request_future = aclient.submit(get_queries, state, pure=False)  # loop=False by default
 
     for k in itertools.count():
-        # 1) Await next batch of queries
+        # 1) Wait for the next queries + scores
         try:
             queries, scores, stats = await request_future
         except CancelledError as e:
             logger.warning("get_queries cancelled for %s: %s", name, e)
             await asyncio.sleep(0.5)
-            # re-submit so we stay alive
-            state = await _get_state(name)
-            request_future = aclient.submit(get_queries, state, loop=False, pure=False)
+            # try again from fresh state
+            state          = await _get_state(name)
+            request_future = aclient.submit(get_queries, state, pure=False)
             continue
 
-        # 2) Validate we have exactly two routes
+        # 2) Sanity-check: we must have exactly two routes
         current_routes = (
             queries[0].get("routes")
             if queries and isinstance(queries[0], dict)
@@ -32,12 +33,12 @@ async def get_queries_loop(name: str) -> bool:
             and all(isinstance(r, dict) and "ident" in r for r in current_routes)
         )
         if not valid_pair:
-            logger.info(f"[{name}] malformed routes, retrying: {current_routes!r}")
-            state = await _get_state(name)
-            request_future = aclient.submit(get_queries, state, loop=False, pure=False)
+            logger.warning("[%s] malformed routes payload, retrying: %r", name, current_routes)
+            state          = await _get_state(name)
+            request_future = aclient.submit(get_queries, state, pure=False)
             continue
 
-        # 3) Run the auto-evaluator (method vs. callable)
+        # 3) Auto-evaluation dispatch
         evalr = AUTO_EVAL.get(name, lambda _: None)
         if hasattr(evalr, "evaluate"):
             winner = evalr.evaluate(current_routes)
@@ -46,21 +47,22 @@ async def get_queries_loop(name: str) -> bool:
         else:
             winner = None
 
-        logger.info(f"[{name}] Evaluator returned winner={winner}")
+        logger.info("[%s] Evaluator chose: %r", name, winner)
 
         if winner is not None:
-            # --- Auto-update path (high confidence) ---
+            # --- Auto-update path ---
             answer = [{
                 "ident":  current_routes[winner]["ident"],
-                "pair":   [current_routes[0]["ident"], current_routes[1]["ident"]],
+                "pair":   [r["ident"] for r in current_routes],
                 "winner": winner,
                 "rank":   [2 if i == winner else 1 for i in range(2)],
                 "routes": current_routes,
             }]
-            logger.info(f"[{name}] AUTO-updating model with answer={answer}")
+            logger.info("[%s] AUTO-updating model with answer %r", name, answer)
             try:
+                # re-fetch state so we pick up any changes from extend_loop in flight
                 state = await _get_state(name)
-                fut = aclient.submit(
+                fut   = aclient.submit(
                     update_model,
                     state,
                     answer,
@@ -69,14 +71,18 @@ async def get_queries_loop(name: str) -> bool:
                 )
                 await fut
             except (KeyError, CancelledError) as e:
-                logger.warning("Auto-update failed for %s at iter %d: %s", name, k, e)
+                logger.warning("[%s] auto-update failed at iter %d: %s", name, k, e)
 
         else:
-            # --- UI path (low confidence) ---
-            logger.info(f"[{name}] Low confidence—posting to UI for human feedback")
+            # --- UI path: post to front-end and let extend_loop handle the user's click ---
+            logger.info("[%s] LOW confidence → posting to UI for human feedback", name)
             await utils.post(name, (queries, scores, stats), delete=False)
 
-        # 4) Uptime bookkeeping & stop signal
+            # **IMPORTANT**: wait for extend_loop to fire and update FUTURES[name].
+            # A simple back-off here gives the other loop a chance to `extend`.
+            await asyncio.sleep(0.5)
+
+        # 4) Periodic bookkeeping & early exit
         if k % 10 == 0:
             uptime = time() - _start
             await conn.set(f"sampler-{name}-uptime", uptime)
@@ -84,15 +90,15 @@ async def get_queries_loop(name: str) -> bool:
             await asyncio.sleep(1)
             break
 
-        # 5) Re-submit to fetch the *next* pair (blocking until ready)
+        # 5) Now fetch the *next* pair from the (new) state
         try:
             state = await _get_state(name)
         except KeyError as e:
-            logger.exception("Failed to reload state for %s: %s", name, e)
+            logger.exception("[%s] failed to reload state: %s", name, e)
             await asyncio.sleep(0.5)
-        request_future = aclient.submit(get_queries, state, loop=True, pure=False)
+        request_future = aclient.submit(get_queries, state, pure=False)
 
-    # Clean shutdown
-    logger.info("Stopping %s; setting stopped flag", name)
+    # clean shutdown
+    logger.info("[%s] stopping get_queries_loop; marking stopped flag", name)
     await conn.set(f"stopped-{name}-queries", b"1")
     return True
