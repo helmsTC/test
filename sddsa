@@ -44,3 +44,57 @@ function showMetrics(q) {
       q.pair ? q.pair.join(' ⟷ ') : '—');
   $('#metrics').show();
 }
+
+
+
+<table id="table" class="table table-striped">
+  <thead>
+    <tr>
+      <th>Rank</th>
+      <th>Score</th>
+      <th>ID</th>
+      <th>Winner</th>      <!-- NEW -->
+      <th>Reward</th>      <!-- NEW -->
+      <th>Pair</th>        <!-- NEW -->
+      <th>Info</th>
+      <th>Route</th>
+      <th>Map</th>
+      {% for k in cost_names %}
+      <th>{{ k }}</th>
+      {% endfor %}
+      <th>prefs</th>
+    </tr>
+  </thead>
+
+
+
+<tbody>
+  {% for item in rankings %}
+  <tr>
+    <td>{{ loop.index }}</td>
+    <td>{{ "%.3f"|format(item.score) }}</td>
+    <td>{{ item.ident }}</td>
+
+    <!-- NEW – make sure these three are present on *every* row -->
+    <td>
+      {% if item.winner is not none %}
+        <span class="badge bg-success">{{ item.winner }}</span>
+      {% else %}—{% endif %}
+    </td>
+    <td>{{ "%.3f"|format(item.reward) if item.reward is not none else "—" }}</td>
+    <td>
+      {% if item.pair %}{{ item.pair[0]|truncate(6) }} vs {{ item.pair[1]|truncate(6) }}{% else %}—{% endif %}
+    </td>
+    <!-- end NEW -->
+
+    <td><a href="/api/{{sampler}}/item/{{item.ident}}?remove=file_contents">ℹ</a></td>
+    <td>…</td>
+    <td>…</td>
+
+    {% for c in item.costs %}
+    <td>{{ "%.2f"|format(c) }}</td>
+    {% endfor %}
+    <td>{{ item.pref }}</td>
+  </tr>
+  {% endfor %}
+</tbody>
