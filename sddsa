@@ -17,3 +17,30 @@
       {% endif %}
     </td>
     <!-- end NEW -->
+
+
+<!-- metrics banner -->
+<div id="metrics"
+     class="alert alert-info small"
+     style="display:none; margin-top:10px;">
+  Winner <strong id="mWinner"></strong> | 
+  Reward <strong id="mReward"></strong> | 
+  Pair <strong id="mPair"></strong>
+</div>
+
+
+
+function showMetrics(q) {
+  if (q.winner === undefined &&
+      q.reward === undefined &&
+      q.pair   === undefined) {
+    $('#metrics').hide();          // nothing to display
+    return;
+  }
+  $('#mWinner').text(q.winner ?? '—');
+  $('#mReward').text(
+      q.reward !== undefined ? q.reward.toFixed(3) : '—');
+  $('#mPair'  ).text(
+      q.pair ? q.pair.join(' ⟷ ') : '—');
+  $('#metrics').show();
+}
