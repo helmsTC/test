@@ -1,0 +1,19 @@
+    <!-- ► NEW ◄ -->
+    <td>
+      {% if item.winner is not none %}
+        <span class="badge bg-success">{{ item.winner }}</span>
+      {% else %}
+        —
+      {% endif %}
+    </td>
+    <td>
+      {{ "%.3f"|format(item.reward) if item.reward is not none else "—" }}
+    </td>
+    <td>
+      {% if item.pair %}
+        {{ item.pair[0]|truncate(6, True, "") }} vs {{ item.pair[1]|truncate(6, True, "") }}
+      {% else %}
+        —
+      {% endif %}
+    </td>
+    <!-- end NEW -->
