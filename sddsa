@@ -70,11 +70,12 @@ function showMetrics(q) {
 <tbody>
   {% for item in rankings %}
   <tr>
+    <!-- existing columns -->
     <td>{{ loop.index }}</td>
     <td>{{ "%.3f"|format(item.score) }}</td>
     <td>{{ item.ident }}</td>
 
-    {# ---------- NEW metrics, now guarded with .get() ---------- #}
+    <!-- NEW metrics -->
     {% set win = item.get('winner') %}
     <td>
       {% if win is not none %}
@@ -91,14 +92,45 @@ function showMetrics(q) {
         {{ pr[0]|truncate(6) }} vs {{ pr[1]|truncate(6) }}
       {% else %}—{% endif %}
     </td>
-    {# ---------- end NEW metrics ---------- #}
 
+    <!-- info link -->
     <td>
       <a href="/api/{{ sampler }}/item/{{ item.ident }}?remove=file_contents">ℹ</a>
     </td>
-    <td>…</td>
-    <td>…</td>
 
+    <!-- file-download (route) -->
+    <td>
+      {%- set ext = item.plan.file_name.split(".")[-1] %}
+      <a href="/api/{{ sampler }}/item/{{ item.ident }}?key=file" download>
+        {{ item.plan.file_name|truncate(20) }}.{{ ext }}&nbsp;⤵️
+      </a>
+    </td>
+
+    <!-- map button (unchanged) -->
+    <td>
+      <div class="color-square"></div>
+      <button
+        {% if loop.index0 <= 2 %}
+          class="btn btn-primary view-map active" aria-pressed="true"
+        {% else %}
+          class="btn btn-primary view-map"
+        {% endif %}
+        id="map-btn-{{ item.path }}"
+        data-route='{{ item.plan | tojson | replace("'", "&#39;") }}'>
+        Show
+      </button>
+      {% if loop.index0 <= 2 %}
+      <script>
+        $(document).ready(function () {
+          var routeData = {{ item.plan | tojson | replace("'", "&#39;") }};
+          var btn = document.getElementById('map-btn-{{ item.path }}');
+          toggleRoute(btn, routeData);
+        });
+      </script>
+      {% endif %}
+    </td>
+
+    <!-- cost columns -->
     {% for c in item.costs %}
     <td>{{ "%.2f"|format(c) }}</td>
     {% endfor %}
