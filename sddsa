@@ -67,7 +67,6 @@ function showMetrics(q) {
   </thead>
 
 
-
 <tbody>
   {% for item in rankings %}
   <tr>
@@ -75,25 +74,35 @@ function showMetrics(q) {
     <td>{{ "%.3f"|format(item.score) }}</td>
     <td>{{ item.ident }}</td>
 
-    <!-- NEW – make sure these three are present on *every* row -->
+    {# ---------- NEW metrics, now guarded with .get() ---------- #}
+    {% set win = item.get('winner') %}
     <td>
-      {% if item.winner is not none %}
-        <span class="badge bg-success">{{ item.winner }}</span>
+      {% if win is not none %}
+        <span class="badge bg-success">{{ win }}</span>
       {% else %}—{% endif %}
     </td>
-    <td>{{ "%.3f"|format(item.reward) if item.reward is not none else "—" }}</td>
-    <td>
-      {% if item.pair %}{{ item.pair[0]|truncate(6) }} vs {{ item.pair[1]|truncate(6) }}{% else %}—{% endif %}
-    </td>
-    <!-- end NEW -->
 
-    <td><a href="/api/{{sampler}}/item/{{item.ident}}?remove=file_contents">ℹ</a></td>
+    {% set rew = item.get('reward') %}
+    <td>{{ "%.3f"|format(rew) if rew is not none else "—" }}</td>
+
+    {% set pr = item.get('pair') %}
+    <td>
+      {% if pr %}
+        {{ pr[0]|truncate(6) }} vs {{ pr[1]|truncate(6) }}
+      {% else %}—{% endif %}
+    </td>
+    {# ---------- end NEW metrics ---------- #}
+
+    <td>
+      <a href="/api/{{ sampler }}/item/{{ item.ident }}?remove=file_contents">ℹ</a>
+    </td>
     <td>…</td>
     <td>…</td>
 
     {% for c in item.costs %}
     <td>{{ "%.2f"|format(c) }}</td>
     {% endfor %}
+
     <td>{{ item.pref }}</td>
   </tr>
   {% endfor %}
