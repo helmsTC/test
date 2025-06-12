@@ -10,8 +10,8 @@ import torch
 import numpy as np
 import yaml
 from easydict import EasyDict as edict
-from types import SimpleNamespace
 from mask_pls.models.mask_model import MaskPS
+from mask_pls.datasets.semantic_dataset import get_things_ids
 
 
 def load_config(config_dir: str) -> edict:
@@ -35,16 +35,16 @@ class MaskPSLiveInference:
         self,
         weights_path: str,
         config_dir: str,
-        dataset_root: str,
+        dataset_name: str = None,
         device: str = "cuda:0",
     ):
         """
-        Initialize model and minimal datamodule for things_ids.
+        Initialize model and set up thing class IDs for panoptic inference.
 
         Args:
           weights_path: Path to .pth checkpoint with state_dict.
           config_dir: Directory containing model.yaml, backbone.yaml, decoder.yaml.
-          dataset_root: Base path to KITTI/NuScenes sequences directory (for datamodule).
+          dataset_name: Name of dataset (e.g., 'KITTI' or 'NUSCENES') to fetch thing IDs.
           device: Torch device string.
         """
         # load config and model
@@ -55,13 +55,18 @@ class MaskPSLiveInference:
         self.model.load_state_dict(ckpt["state_dict"])
         self.model.eval()
 
-        # instantiate minimal datamodule to get things_ids
-        from mask_pls.datasets.semantic_dataset import SemanticDatasetModule
-        dm = SemanticDatasetModule(self.cfg)
-        # override path in cfg for datamodule
-        self.cfg[self.cfg.MODEL.DATASET].PATH = dataset_root
-        dm.setup(stage="test")
-        self.model.trainer = SimpleNamespace(datamodule=dm)
+        # set things_ids and stuff_ids directly without dataset
+        from mask_pls.datasets.semantic_dataset import get_things_ids, get_stuff
+        things_ids = get_things_ids(dataset_name)
+        stuff_ids = list(get_stuff(dataset_name).keys())
+        # attach minimal datamodule namespace with both IDs
+        from types import SimpleNamespace
+        self.model.trainer = SimpleNamespace(
+            datamodule=SimpleNamespace(
+                things_ids=things_ids,
+                stuff_ids=stuff_ids
+            )
+        )
 
     def preprocess(
         self,
@@ -81,15 +86,12 @@ class MaskPSLiveInference:
             cloud = np.fromfile(file_path, dtype=np.float32).reshape(-1, 4)
         assert cloud is not None, "Provide cloud array or file_path"
 
-        # split coords and feats
         xyz = torch.from_numpy(cloud[:, :3]).float()
         intensity = torch.from_numpy(cloud[:, 3:4]).float()
 
-        # assemble batch-dict with batch size 1
         x = {
             'pt_coord': [xyz.to(self.device)],
             'feats': [intensity.to(self.device)],
-            # no labels/masks needed for inference
             'sem_label': [[]],
             'ins_label': [[]],
             'masks': [[]],
@@ -117,15 +119,11 @@ class MaskPSLiveInference:
           inst: (N,) int32 array of instance IDs
         """
         x = self.preprocess(cloud, file_path)
-        # forward pass
         with torch.no_grad():
             outputs, padding, _ = self.model(x)
             sem_np, inst_np = self.model.panoptic_inference(outputs, padding)
 
-        # since batch size=1, extract first
-        sem = sem_np[0]
-        inst = inst_np[0]
-        return sem, inst
+        return sem_np[0], inst_np[0]
 
 
 if __name__ == "__main__":
@@ -142,8 +140,8 @@ if __name__ == "__main__":
         help="Folder with model.yaml, backbone.yaml, decoder.yaml"
     )
     parser.add_argument(
-        "-r", "--dataset_root", required=True,
-        help="Base path to KITTI/NuScenes "
+        "-n", "--dataset_name", default=None,
+        help="Dataset name for thing IDs, e.g. 'KITTI' or 'NUSCENES'"
     )
     parser.add_argument(
         "-p", "--pcd", required=True, help="Path to .bin pointcloud file"
@@ -154,7 +152,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     app = MaskPSLiveInference(
-        args.weights, args.config_dir, args.dataset_root, args.device
+        args.weights, args.config_dir, args.dataset_name, args.device
     )
-    semantic, instance = app.infer(file_path=args.pcd)
-    print(f"Semantic labels shape: {semantic.shape}\nInstance IDs shape: {instance.shape}")
+    sem, inst = app.infer(file_path=args.pcd)
+    print(f"Semantic labels shape: {sem.shape}\nInstance IDs shape: {inst.shape}")
